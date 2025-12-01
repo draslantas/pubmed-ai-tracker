@@ -100,11 +100,42 @@ def analyze_paper(text):
             
     return tags
 
+def parse_pub_date(pub_date_data):
+    """Parses PubMed date into YYYY-MM-DD string for sorting."""
+    try:
+        year = pub_date_data.get('Year', '')
+        month = pub_date_data.get('Month', '01') # Default Jan
+        day = pub_date_data.get('Day', '01')     # Default 1st
+        
+        # Convert month name to number
+        month_map = {
+            "Jan": "01", "Feb": "02", "Mar": "03", "Apr": "04", "May": "05", "Jun": "06",
+            "Jul": "07", "Aug": "08", "Sep": "09", "Oct": "10", "Nov": "11", "Dec": "12"
+        }
+        if month in month_map:
+            month = month_map[month]
+            
+        # Handle MedlineDate (e.g. "2024 Oct-Dec")
+        if not year and 'MedlineDate' in pub_date_data:
+            medline_date = pub_date_data['MedlineDate']
+            match = re.search(r'(\d{4})', medline_date)
+            if match:
+                year = match.group(1)
+                
+        if year:
+            return f"{year}-{month}-{day}"
+            
+    except Exception:
+        pass
+        
+    return "0000-00-00" # Fallback for unknown dates
+
 def fetch_new_papers(days=1):
     """Fetches papers from the last N days."""
     print(f"🔍 Scanning PubMed for the last {days} days...")
     
-    handle = Entrez.esearch(db="pubmed", term=SEARCH_TERM, reldate=days, retmax=1000, sort="relevance")
+    # Use sort="pub+date" to get newest published first
+    handle = Entrez.esearch(db="pubmed", term=SEARCH_TERM, reldate=days, retmax=9999, sort="pub+date")
     record = Entrez.read(handle)
     handle.close()
     
@@ -123,6 +154,8 @@ def fetch_new_papers(days=1):
     stored_ids = {p['id'] for p in stored_papers}
     
     new_count = 0
+    cutoff_date = "2025-01-01" # Filter for 2025
+    today_str = datetime.now().strftime("%Y-%m-%d")
     
     for paper in records['PubmedArticle']:
         try:
@@ -137,18 +170,22 @@ def fetch_new_papers(days=1):
             # Journal
             journal = article.get('Journal', {}).get('Title', 'Unknown Journal')
             
-            # Date Parsing (Robust)
+            # Date Parsing
             pub_date_data = article.get('Journal', {}).get('JournalIssue', {}).get('PubDate', {})
-            if 'Year' in pub_date_data:
-                year = pub_date_data.get('Year', '')
-                month = pub_date_data.get('Month', '')
-                day = pub_date_data.get('Day', '')
-                pub_date = f"{year} {month} {day}".strip()
-            elif 'MedlineDate' in pub_date_data:
-                pub_date = pub_date_data['MedlineDate']
-            else:
-                pub_date = "Unknown Date"
+            sort_date = parse_pub_date(pub_date_data)
             
+            # Display Date (Human Readable)
+            if 'Year' in pub_date_data:
+                pub_date_display = f"{pub_date_data.get('Year')} {pub_date_data.get('Month', '')} {pub_date_data.get('Day', '')}".strip()
+            elif 'MedlineDate' in pub_date_data:
+                pub_date_display = pub_date_data['MedlineDate']
+            else:
+                pub_date_display = "Unknown Date"
+
+            # FILTER: Skip papers before 2025 OR in the future
+            if sort_date < cutoff_date or sort_date > today_str:
+                continue
+
             # Abstract
             abstract_list = article.get('Abstract', {}).get('AbstractText', [])
             abstract_text = " ".join(abstract_list) if isinstance(abstract_list, list) else str(abstract_list)
@@ -168,7 +205,8 @@ def fetch_new_papers(days=1):
                 "title": title,
                 "authors": author_str,
                 "journal": journal,
-                "pub_date": pub_date,
+                "pub_date": pub_date_display,
+                "sort_date": sort_date, # New field for sorting
                 "abstract": abstract_text,
                 "tags": tags,
                 "date_added": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -182,7 +220,8 @@ def fetch_new_papers(days=1):
             print(f"Error ({pmid}): {e}")
             
     save_papers(stored_papers)
-    print(f"✅ {new_count} new papers saved.")
+    print(f"✅ {new_count} new papers saved (2025+).")
 
 if __name__ == "__main__":
-    fetch_new_papers(days=10)
+    # Initial run: fetch last 365 days to catch everything in 2025
+    fetch_new_papers(days=365)

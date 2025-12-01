@@ -34,17 +34,18 @@ st.markdown("---")
 # Sidebar
 with st.sidebar:
     st.header("Control Panel")
-    if st.button("🔄 Scan Now (Last 24h)"):
-        with st.spinner("Scanning PubMed..."):
-            main.fetch_new_papers(days=1)
+    if st.button("🔄 Full Scan (2025)"):
+        with st.spinner("Scanning PubMed (This may take a while)..."):
+            main.fetch_new_papers(days=365)
         st.success("Scan complete!")
         st.rerun()
     
     st.info("Auto-scan runs daily at 08:00.")
 
-# Load and Sort Papers (Newest First)
+# Load and Sort Papers (Newest First by Publication Date)
 papers = load_papers()
-papers.sort(key=lambda x: x.get('date_added', ''), reverse=True)
+# Sort by 'sort_date' (YYYY-MM-DD) which we added in main.py
+papers.sort(key=lambda x: x.get('sort_date', '0000-00-00'), reverse=True)
 
 # Daily Count
 today_str = datetime.now().strftime("%Y-%m-%d")
@@ -70,9 +71,10 @@ def render_paper_card(paper, current_tab):
     with st.container():
         st.markdown(f"""
         <div style="border-left: 5px solid {border_color}; padding-left: 10px; margin-bottom: 20px;">
-            <h3>{paper['title']}</h3>
+            <h3><a href="https://pubmed.ncbi.nlm.nih.gov/{paper['id']}/" target="_blank" style="text-decoration: none; color: inherit;">{paper['title']}</a></h3>
             <p><b>{paper.get('journal', 'Unknown Journal')}</b> | <i>{paper.get('pub_date', 'Unknown Date')}</i></p>
             <p><i>{paper['authors']}</i></p>
+            <p><a href="https://pubmed.ncbi.nlm.nih.gov/{paper['id']}/" target="_blank">🔗 View on PubMed</a></p>
         </div>
         """, unsafe_allow_html=True)
         
