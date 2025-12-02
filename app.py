@@ -34,13 +34,20 @@ st.markdown("---")
 # Sidebar
 with st.sidebar:
     st.header("Control Panel")
-    if st.button("🔄 Full Scan (2025)"):
-        with st.spinner("Scanning PubMed (This may take a while)..."):
-            main.fetch_new_papers(days=365)
-        st.success("Scan complete!")
+    
+    if st.button("🔄 Daily Scan (Last 24h)"):
+        with st.spinner("Scanning PubMed for today..."):
+            main.fetch_new_papers(days=1, is_full_scan=False)
+        st.success("Daily scan complete!")
+        st.rerun()
+
+    if st.button("🗓️ Full Scan (Since Oct 8, 2025)"):
+        with st.spinner("Scanning PubMed from Oct 8, 2025 to today..."):
+            main.fetch_new_papers(days=1, is_full_scan=True)
+        st.success("Full scan complete!")
         st.rerun()
     
-    st.info("Auto-scan runs daily at 08:00.")
+    st.info("💡 Daily Scan: Last 24h only | Full Scan: All papers since Oct 8, 2025")
 
 # Load and Sort Papers (Newest First by Publication Date)
 papers = load_papers()
